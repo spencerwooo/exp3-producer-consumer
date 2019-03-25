@@ -33,9 +33,22 @@ const int CONSUME_TIMES = 3;
 const int BUFFER_SIZE = 4;
 
 // 初始化共享内存 ID，信号量 ID 和信号量集合
-int sharedMemoryId = -1;
 int semSetId = -1;
 union semun semUnion;
+
+// 初始化信号量标志
+const int MUTEX = 0;
+const int FULL = 1;
+const int EMPTY = 2;
+
+// 维护一个缓冲区队列，一个头指针，一个尾指针
+struct sharedMemory
+{
+  char buffer[BUFFER_SIZE];
+  int head;
+  int tail;
+  bool isEmpty;
+};
 
 // 生成一个 1~3 秒的随机时间
 int getRandomDelay()
@@ -52,23 +65,65 @@ char getStock()
   return stock[rand() % 3];
 }
 
-void *createSharedMemory(size_t size)
+void printBufferStocks(struct sharedMemory *shMem)
 {
-  int protection = PROT_READ | PROT_WRITE;
-  int visibility = MAP_ANONYMOUS | MAP_SHARED;
-  return mmap(NULL, size, protection, visibility, 0, 0);
+  if (shMem->isEmpty == true)
+  {
+    cout << "-";
+  }
+  else
+  {
+    for (int i = (shMem->tail - 1 >= shMem->head) ? (shMem->tail - 1) : (shMem->tail - 1 + BUFFER_SIZE); i >= shMem->head; i--)
+    {
+      cout << shMem->buffer[i % BUFFER_SIZE];
+    }
+  }
 }
 
-void produce()
+void produce(int shmId)
 {
+  // 获取共享缓冲区指针
+  struct sharedMemory *shmPtr;
+  if ((shmPtr = (struct sharedMemory *)shmat(shmId, 0, 0)) == (void *)-1)
+  {
+    cerr << "[ERR] Producer get shared memory shmat failed." << endl;
+  }
+
+  // 获取一个随机字母作为货物
   char mostRecentStock = getStock();
-  cout << "[PRODUCER] Produce item: " << mostRecentStock << endl;
+
+  // 将货物压入队尾
+  shmPtr->buffer[shmPtr->tail] = mostRecentStock;
+  shmPtr->tail = (shmPtr->tail + 1) % BUFFER_SIZE;
+  shmPtr->isEmpty = false;
+  cout << "[PRODUCER] Produce item: " << mostRecentStock << " | BUFFER: ";
+  printBufferStocks(shmPtr);
+  cout << endl;
+  shmdt(shmPtr);
 }
 
-void consume()
+void consume(int shmId)
 {
-  char mostRecentStock = getStock();
-  cout << "[CONSUMER] Consume item: " << mostRecentStock << endl;
+  // 获取共享缓冲区指针
+  struct sharedMemory *shmPtr;
+  if ((shmPtr = (struct sharedMemory *)shmat(shmId, 0, 0)) == (void *)-1)
+  {
+    cerr << "[ERR] Consumer get shared memory shmat failed." << endl;
+  }
+
+  // 将队列头的货物取出
+  char mostRecentStock = shmPtr->buffer[shmPtr->head];
+  shmPtr->head = (shmPtr->head + 1) % BUFFER_SIZE;
+
+  if (shmPtr->head == shmPtr->tail)
+  {
+    shmPtr->isEmpty = true;
+  }
+
+  cout << "[CONSUMER] Consume item: " << mostRecentStock << " | BUFFER: ";
+  printBufferStocks(shmPtr);
+  cout << endl;
+  shmdt(shmPtr);
 }
 
 void P(int semSetId, int semNum)
@@ -105,9 +160,27 @@ void V(int semSetId, int semNum)
 
 int main(int argc, char const *argv[])
 {
-  void *sharedMemory = createSharedMemory(SHARED_MEM_SIZE);
-  char *initMemory = "-";
-  memcpy(sharedMemory, initMemory, sizeof(sharedMemory));
+  // 初始化共享缓冲区
+  int sharedMemoryId;
+  struct sharedMemory *shmPointer;
+
+  // 共享缓冲区 ID
+  if ((sharedMemoryId = shmget(IPC_PRIVATE, BUFFER_SIZE, SHM_MODE)) < 0)
+  {
+    cerr << "[ERR] Create shared memory failed." << endl;
+    exit(1);
+  }
+
+  // 共享缓存区指针
+  if ((shmPointer = (struct sharedMemory *)shmat(sharedMemoryId, 0, 0)) == (void *)-1)
+  {
+    cerr << "[ERR] Get shared memory shmat failed." << endl;
+    exit(1);
+  }
+
+  shmPointer->head = 0;
+  shmPointer->tail = 0;
+  shmPointer->isEmpty = true;
 
   // 创建信号量，创建两个同步信号量和一个互斥信号量
   if ((semSetId = semget(IPC_PRIVATE, 3, SEM_MODE)) < 0)
@@ -116,25 +189,25 @@ int main(int argc, char const *argv[])
     exit(1);
   }
 
-  // 互斥信号量 0，表示缓冲区大小为 BUFFER_SIZE = 4
-  semUnion.val = BUFFER_SIZE;
-  if (semctl(semSetId, 0, SETVAL, semUnion) < 0)
+  // 互斥信号量 MUTEX 0 = 1
+  semUnion.val = 1;
+  if (semctl(semSetId, MUTEX, SETVAL, semUnion) < 0)
   {
     cerr << "[ERR] Semaphore 1 init failed." << endl;
     exit(1);
   }
 
-  // 同步信号量 1 为 0，表示当前缓冲区没有物品
+  // 同步信号量 FULL 1 = 0，表示当前缓冲区没有物品
   semUnion.val = 0;
-  if (semctl(semSetId, 1, SETVAL, semUnion) < 0)
+  if (semctl(semSetId, FULL, SETVAL, semUnion) < 0)
   {
     cerr << "[ERR] Semaphore 2 init failed." << endl;
     exit(1);
   }
 
-  // 同步信号量 2 为 1，表示可以进入缓冲区
-  semUnion.val = 1;
-  if (semctl(semSetId, 2, SETVAL, semUnion) < 0)
+  // 同步信号量 EMPTY = BUFFER_SIZE，表示可以进入缓冲区
+  semUnion.val = BUFFER_SIZE;
+  if (semctl(semSetId, EMPTY, SETVAL, semUnion) < 0)
   {
     cerr << "[ERR] Semphore 3 init failed." << endl;
     exit(1);
@@ -152,15 +225,16 @@ int main(int argc, char const *argv[])
     if (consumerProcess == 0)
     {
       cout << "[CONSUMER] Consumer ID: " << i << ", PID = " << getpid() << endl;
+
       for (int j = 0; j < CONSUME_TIMES; j++)
       {
         // 随机等待一个 1~3 秒的时间
         sleep(getRandomDelay());
-        P(semSetId, 1);
-        P(semSetId, 2);
-        consume();
-        V(semSetId, 2);
-        V(semSetId, 0);
+        P(semSetId, EMPTY);
+        P(semSetId, MUTEX);
+        consume(sharedMemoryId);
+        V(semSetId, MUTEX);
+        V(semSetId, FULL);
       }
       exit(0);
     }
@@ -178,14 +252,15 @@ int main(int argc, char const *argv[])
     if (producerProcess == 0)
     {
       cout << "[PRODUCER] Producer ID: " << i << ", PID = " << getpid() << endl;
+
       for (int j = 0; j < PRODUCE_TIMES; j++)
       {
         sleep(getRandomDelay());
-        P(semSetId, 0);
-        P(semSetId, 2);
-        produce();
-        V(semSetId, 2);
-        V(semSetId, 1);
+        P(semSetId, FULL);
+        P(semSetId, MUTEX);
+        produce(sharedMemoryId);
+        V(semSetId, MUTEX);
+        V(semSetId, EMPTY);
       }
       exit(0);
     }
@@ -194,6 +269,8 @@ int main(int argc, char const *argv[])
   // 父进程等待两个子进程返回之后继续执行
   while (wait(0) > 0)
     ;
+  shmdt(shmPointer);
+  cout << "[MAIN PROCESS] Main process exit." << endl;
 
   return 0;
 }
