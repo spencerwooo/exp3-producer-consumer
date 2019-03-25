@@ -3,7 +3,6 @@
 #include <sys/shm.h>
 #include <sys/wait.h>
 #include <string.h>
-#include <sys/mman.h>
 #include <unistd.h>
 
 // 有些平台根据 POSIX 规范未定义信号量 Union，我们自己定义
@@ -80,52 +79,6 @@ void printBufferStocks(struct sharedMemory *shMem)
   }
 }
 
-void produce(int shmId)
-{
-  // 获取共享缓冲区指针
-  struct sharedMemory *shmPtr;
-  if ((shmPtr = (struct sharedMemory *)shmat(shmId, 0, 0)) == (void *)-1)
-  {
-    cerr << "[ERR] Producer get shared memory shmat failed." << endl;
-  }
-
-  // 获取一个随机字母作为货物
-  char mostRecentStock = getStock();
-
-  // 将货物压入队尾
-  shmPtr->buffer[shmPtr->tail] = mostRecentStock;
-  shmPtr->tail = (shmPtr->tail + 1) % BUFFER_SIZE;
-  shmPtr->isEmpty = false;
-  cout << "[PRODUCER] Produce item: " << mostRecentStock << " | BUFFER: ";
-  printBufferStocks(shmPtr);
-  cout << endl;
-  shmdt(shmPtr);
-}
-
-void consume(int shmId)
-{
-  // 获取共享缓冲区指针
-  struct sharedMemory *shmPtr;
-  if ((shmPtr = (struct sharedMemory *)shmat(shmId, 0, 0)) == (void *)-1)
-  {
-    cerr << "[ERR] Consumer get shared memory shmat failed." << endl;
-  }
-
-  // 将队列头的货物取出
-  char mostRecentStock = shmPtr->buffer[shmPtr->head];
-  shmPtr->head = (shmPtr->head + 1) % BUFFER_SIZE;
-
-  if (shmPtr->head == shmPtr->tail)
-  {
-    shmPtr->isEmpty = true;
-  }
-
-  cout << "[CONSUMER] Consume item: " << mostRecentStock << " | BUFFER: ";
-  printBufferStocks(shmPtr);
-  cout << endl;
-  shmdt(shmPtr);
-}
-
 void P(int semSetId, int semNum)
 {
   struct sembuf semBuffer;
@@ -156,6 +109,68 @@ void V(int semSetId, int semNum)
     cerr << "[ERR] V operation failed." << endl;
     exit(1);
   }
+}
+
+void produce(int shmId)
+{
+  sleep(getRandomDelay());
+  // 获取一个随机字母作为货物
+  char mostRecentStock = getStock();
+
+  P(semSetId, EMPTY);
+  P(semSetId, MUTEX);
+
+  // 获取共享缓冲区指针
+  struct sharedMemory *shmPtr;
+  if ((shmPtr = (struct sharedMemory *)shmat(shmId, 0, 0)) == (void *)-1)
+  {
+    cerr << "[ERR] Producer get shared memory shmat failed." << endl;
+  }
+
+  // 将货物压入队尾
+  shmPtr->buffer[shmPtr->tail] = mostRecentStock;
+  shmPtr->tail = (shmPtr->tail + 1) % BUFFER_SIZE;
+  shmPtr->isEmpty = false;
+  cout << "[PRODUCER] Produce item: " << mostRecentStock << " | BUFFER: ";
+  printBufferStocks(shmPtr);
+  cout << endl;
+  shmdt(shmPtr);
+
+  V(semSetId, MUTEX);
+  V(semSetId, FULL);
+}
+
+void consume(int shmId)
+{
+  P(semSetId, FULL);
+  P(semSetId, MUTEX);
+
+  // 随机等待一个 1~3 秒的时间
+  sleep(getRandomDelay());
+
+  // 获取共享缓冲区指针
+  struct sharedMemory *shmPtr;
+  if ((shmPtr = (struct sharedMemory *)shmat(shmId, 0, 0)) == (void *)-1)
+  {
+    cerr << "[ERR] Consumer get shared memory shmat failed." << endl;
+  }
+
+  // 将队列头的货物取出
+  char mostRecentStock = shmPtr->buffer[shmPtr->head];
+  shmPtr->head = (shmPtr->head + 1) % BUFFER_SIZE;
+
+  if (shmPtr->head == shmPtr->tail)
+  {
+    shmPtr->isEmpty = true;
+  }
+
+  cout << "[CONSUMER] Consume item: " << mostRecentStock << " | BUFFER: ";
+  printBufferStocks(shmPtr);
+  cout << endl;
+  shmdt(shmPtr);
+
+  V(semSetId, MUTEX);
+  V(semSetId, EMPTY);
 }
 
 int main(int argc, char const *argv[])
@@ -193,7 +208,7 @@ int main(int argc, char const *argv[])
   semUnion.val = 1;
   if (semctl(semSetId, MUTEX, SETVAL, semUnion) < 0)
   {
-    cerr << "[ERR] Semaphore 1 init failed." << endl;
+    cerr << "[ERR] MUTEX init failed." << endl;
     exit(1);
   }
 
@@ -201,7 +216,7 @@ int main(int argc, char const *argv[])
   semUnion.val = 0;
   if (semctl(semSetId, FULL, SETVAL, semUnion) < 0)
   {
-    cerr << "[ERR] Semaphore 2 init failed." << endl;
+    cerr << "[ERR] FULL init failed." << endl;
     exit(1);
   }
 
@@ -209,38 +224,11 @@ int main(int argc, char const *argv[])
   semUnion.val = BUFFER_SIZE;
   if (semctl(semSetId, EMPTY, SETVAL, semUnion) < 0)
   {
-    cerr << "[ERR] Semphore 3 init failed." << endl;
+    cerr << "[ERR] EMPTY init failed." << endl;
     exit(1);
   }
 
-  // 消费！（子进程 1）
-  for (int i = 0; i < CONSUMER_COUNT; i++)
-  {
-    pid_t consumerProcess = fork();
-    if (consumerProcess < 0)
-    {
-      cerr << "[ERR] Consumer process creation failed." << endl;
-      exit(1);
-    }
-    if (consumerProcess == 0)
-    {
-      cout << "[CONSUMER] Consumer ID: " << i << ", PID = " << getpid() << endl;
-
-      for (int j = 0; j < CONSUME_TIMES; j++)
-      {
-        // 随机等待一个 1~3 秒的时间
-        sleep(getRandomDelay());
-        P(semSetId, EMPTY);
-        P(semSetId, MUTEX);
-        consume(sharedMemoryId);
-        V(semSetId, MUTEX);
-        V(semSetId, FULL);
-      }
-      exit(0);
-    }
-  }
-
-  // 生产！（子进程 2）
+  // 生产！（子进程 1）
   for (int i = 0; i < PRODUCER_COUNT; i++)
   {
     pid_t producerProcess = fork();
@@ -255,12 +243,28 @@ int main(int argc, char const *argv[])
 
       for (int j = 0; j < PRODUCE_TIMES; j++)
       {
-        sleep(getRandomDelay());
-        P(semSetId, FULL);
-        P(semSetId, MUTEX);
         produce(sharedMemoryId);
-        V(semSetId, MUTEX);
-        V(semSetId, EMPTY);
+      }
+      exit(0);
+    }
+  }
+
+  // 消费！（子进程 2）
+  for (int i = 0; i < CONSUMER_COUNT; i++)
+  {
+    pid_t consumerProcess = fork();
+    if (consumerProcess < 0)
+    {
+      cerr << "[ERR] Consumer process creation failed." << endl;
+      exit(1);
+    }
+    if (consumerProcess == 0)
+    {
+      cout << "[CONSUMER] Consumer ID: " << i << ", PID = " << getpid() << endl;
+
+      for (int j = 0; j < CONSUME_TIMES; j++)
+      {
+        consume(sharedMemoryId);
       }
       exit(0);
     }
