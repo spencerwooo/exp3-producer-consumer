@@ -32,15 +32,16 @@ const int CONSUME_TIMES = 3;
 const int BUFFER_SIZE = 4;
 
 // 初始化共享内存 ID，信号量 ID 和信号量集合
-int semSetId = -1;
+int semId = -1;
 union semun semUnion;
 
-// 初始化信号量标志
+// 初始化信号量标志（不是初始化信号量）
 const int MUTEX = 0;
 const int FULL = 1;
 const int EMPTY = 2;
 
-// 维护一个缓冲区队列，一个头指针，一个尾指针
+/* 维护一个缓冲区队列，一个头指针，一个尾指针
+和一个标识符来表示队列是否为空 */
 struct sharedMemory
 {
   char buffer[BUFFER_SIZE];
@@ -64,6 +65,7 @@ char getStock()
   return stock[rand() % 3];
 }
 
+// 打印缓冲区中的内容
 void printBufferStocks(struct sharedMemory *shMem)
 {
   if (shMem->isEmpty == true)
@@ -79,46 +81,41 @@ void printBufferStocks(struct sharedMemory *shMem)
   }
 }
 
-void P(int semSetId, int semNum)
+// P 操作
+void P(int semId, int semNum)
 {
   struct sembuf semBuffer;
 
   // 申请一个资源，信号量减一
-  semBuffer.sem_flg = SEM_UNDO;
+  semBuffer.sem_flg = 0;
   semBuffer.sem_num = semNum;
   semBuffer.sem_op = -1;
 
-  if (semop(semSetId, &semBuffer, 1) < 0)
-  {
-    cerr << "[ERR] P operation failed." << endl;
-    exit(1);
-  }
+  semop(semId, &semBuffer, 1);
 }
 
-void V(int semSetId, int semNum)
+// V 操作
+void V(int semId, int semNum)
 {
   struct sembuf semBuffer;
 
   // 释放一个资源，信号量加一
-  semBuffer.sem_flg = SEM_UNDO;
+  semBuffer.sem_flg = 0;
   semBuffer.sem_num = semNum;
   semBuffer.sem_op = 1;
 
-  if (semop(semSetId, &semBuffer, 1) < 0)
-  {
-    cerr << "[ERR] V operation failed." << endl;
-    exit(1);
-  }
+  semop(semId, &semBuffer, 1);
 }
 
-void produce(int shmId)
+void produce(int shmId, int producerId)
 {
   sleep(getRandomDelay());
+
   // 获取一个随机字母作为货物
   char mostRecentStock = getStock();
 
-  P(semSetId, EMPTY);
-  P(semSetId, MUTEX);
+  P(semId, EMPTY);
+  P(semId, MUTEX);
 
   // 获取共享缓冲区指针
   struct sharedMemory *shmPtr;
@@ -131,19 +128,21 @@ void produce(int shmId)
   shmPtr->buffer[shmPtr->tail] = mostRecentStock;
   shmPtr->tail = (shmPtr->tail + 1) % BUFFER_SIZE;
   shmPtr->isEmpty = false;
-  cout << "[PRODUCER] Produce item: " << mostRecentStock << " | BUFFER: ";
+
+  // 打印共享缓冲区中的内容
+  cout << "[PRODUCER] Producer " << producerId << " produce item: " << mostRecentStock << " | BUFFER: ";
   printBufferStocks(shmPtr);
   cout << endl;
   shmdt(shmPtr);
 
-  V(semSetId, MUTEX);
-  V(semSetId, FULL);
+  V(semId, MUTEX);
+  V(semId, FULL);
 }
 
-void consume(int shmId)
+void consume(int shmId, int consumerId)
 {
-  P(semSetId, FULL);
-  P(semSetId, MUTEX);
+  P(semId, FULL);
+  P(semId, MUTEX);
 
   // 随机等待一个 1~3 秒的时间
   sleep(getRandomDelay());
@@ -164,13 +163,14 @@ void consume(int shmId)
     shmPtr->isEmpty = true;
   }
 
-  cout << "[CONSUMER] Consume item: " << mostRecentStock << " | BUFFER: ";
+  // 打印共享缓冲区中的内容
+  cout << "[CONSUMER] Consumer " << consumerId << " consume item: " << mostRecentStock << " | BUFFER: ";
   printBufferStocks(shmPtr);
   cout << endl;
   shmdt(shmPtr);
 
-  V(semSetId, MUTEX);
-  V(semSetId, EMPTY);
+  V(semId, MUTEX);
+  V(semId, EMPTY);
 }
 
 int main(int argc, char const *argv[])
@@ -198,7 +198,7 @@ int main(int argc, char const *argv[])
   shmPointer->isEmpty = true;
 
   // 创建信号量，创建两个同步信号量和一个互斥信号量
-  if ((semSetId = semget(IPC_PRIVATE, 3, SEM_MODE)) < 0)
+  if ((semId = semget(IPC_PRIVATE, 3, SEM_MODE)) < 0)
   {
     cerr << "[ERR] Create semaphore failed" << endl;
     exit(1);
@@ -206,7 +206,7 @@ int main(int argc, char const *argv[])
 
   // 互斥信号量 MUTEX 0 = 1
   semUnion.val = 1;
-  if (semctl(semSetId, MUTEX, SETVAL, semUnion) < 0)
+  if (semctl(semId, MUTEX, SETVAL, semUnion) < 0)
   {
     cerr << "[ERR] MUTEX init failed." << endl;
     exit(1);
@@ -214,7 +214,7 @@ int main(int argc, char const *argv[])
 
   // 同步信号量 FULL 1 = 0，表示当前缓冲区没有物品
   semUnion.val = 0;
-  if (semctl(semSetId, FULL, SETVAL, semUnion) < 0)
+  if (semctl(semId, FULL, SETVAL, semUnion) < 0)
   {
     cerr << "[ERR] FULL init failed." << endl;
     exit(1);
@@ -222,7 +222,7 @@ int main(int argc, char const *argv[])
 
   // 同步信号量 EMPTY = BUFFER_SIZE，表示可以进入缓冲区
   semUnion.val = BUFFER_SIZE;
-  if (semctl(semSetId, EMPTY, SETVAL, semUnion) < 0)
+  if (semctl(semId, EMPTY, SETVAL, semUnion) < 0)
   {
     cerr << "[ERR] EMPTY init failed." << endl;
     exit(1);
@@ -243,7 +243,7 @@ int main(int argc, char const *argv[])
 
       for (int j = 0; j < PRODUCE_TIMES; j++)
       {
-        produce(sharedMemoryId);
+        produce(sharedMemoryId, i);
       }
       exit(0);
     }
@@ -264,7 +264,7 @@ int main(int argc, char const *argv[])
 
       for (int j = 0; j < CONSUME_TIMES; j++)
       {
-        consume(sharedMemoryId);
+        consume(sharedMemoryId, i);
       }
       exit(0);
     }
