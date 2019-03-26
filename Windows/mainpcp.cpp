@@ -75,7 +75,6 @@ int main(int argc, char const *argv[])
   // 初始化共享缓存区
   pcpSharedMemory->data.head = 0;
   pcpSharedMemory->data.tail = 0;
-  pcpSharedMemory->shmIndex = 0;
 
   // 初始化信号量，两个同步信号量一个互斥信号量
   // 同步信号量 EMPTY = BUFFER_SIZE，表示可以进入缓冲区

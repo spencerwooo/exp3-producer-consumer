@@ -57,7 +57,6 @@ int main(int argc, char const *argv[])
 
     char stock = getStock();
 
-    pcpSharedMemory->shmIndex++;
     pcpSharedMemory->data.buffer[pcpSharedMemory->data.tail] = stock;
     pcpSharedMemory->data.tail = (pcpSharedMemory->data.tail + 1) % BUFFER_SIZE;
     pcpSharedMemory->data.isEmpty = 0;

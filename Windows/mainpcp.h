@@ -15,7 +15,7 @@ const int CONSUMER_PROCESS_ID_TAIL = 7;
 const int TOTAL_PROCESS_COUNT = 7;
 
 // 共享缓冲文件名
-char SHM_NAME[] = "BUFFER";
+TCHAR SHM_NAME[] = TEXT("BUFFER");
 // 三个信号量名
 TCHAR SEM_EMPTY[] = TEXT("PCP_EMPTY");
 TCHAR SEM_FULL[] = TEXT("PCP_FULL");
@@ -41,7 +41,6 @@ struct sharedMemBuffer
  */
 struct sharedMemory
 {
-  int shmIndex;
   struct sharedMemBuffer data;
   HANDLE semFull;
   HANDLE semEmpty;

@@ -7,14 +7,6 @@
 
 using namespace std;
 
-// 从 "W", "S", "B" 三个字母中随机取一个
-char getStock()
-{
-  srand(time(NULL));
-  char stock[] = {'W', 'S', 'B'};
-  return stock[rand() % 3];
-}
-
 // 生成一个 1~3 秒的随机时间
 int getRandomDelay()
 {
@@ -55,7 +47,6 @@ int main(int argc, char const *argv[])
     WaitForSingleObject(pcpSharedMemory->semMutex, INFINITE);
     Sleep(getRandomDelay() * 1000);
 
-    pcpSharedMemory->shmIndex++;
     char stock = pcpSharedMemory->data.buffer[pcpSharedMemory->data.head];
     pcpSharedMemory->data.head = (pcpSharedMemory->data.head + 1) % BUFFER_SIZE;
 
