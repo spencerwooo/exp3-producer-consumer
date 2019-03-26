@@ -38,7 +38,7 @@
 
 ### Linux
 
-![](Images/linux.png)
+<img src="Images/linux.png" width="80%" align="center">
 
 ### Windows
 
