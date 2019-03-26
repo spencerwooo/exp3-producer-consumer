@@ -6,7 +6,7 @@
 
 using namespace std;
 // 共享缓冲文件名
-TCHAR SHM_NAME[] = TEXT("PCP_NAMED_SHARED_MEM");
+char SHM_NAME[] = "BUFFER";
 // 三个信号量名
 TCHAR SEM_EMPTY[] = TEXT("PCP_EMPTY");
 TCHAR SEM_FULL[] = TEXT("PCP_FULL");
@@ -65,16 +65,16 @@ int main(int argc, char const *argv[])
   HANDLE conSharedMappingFileHandle;
   LPVOID conShmFilePointer;
 
-  conSharedMappingFileHandle = OpenFileMapping(FILE_MAP_ALL_ACCESS, FALSE, SHM_NAME);
+  conSharedMappingFileHandle = OpenFileMapping(FILE_MAP_ALL_ACCESS, 0, SHM_NAME);
   if (conSharedMappingFileHandle == NULL)
   {
-    cerr << "[ERR] Could not create file mapping object: " << GetLastError() << endl;
+    cerr << "[ERR] Consumer could not open file mapping object: " << GetLastError() << endl;
     return 1;
   }
   conShmFilePointer = MapViewOfFile(conSharedMappingFileHandle, FILE_MAP_ALL_ACCESS, 0, 0, 0);
   if (conShmFilePointer == NULL)
   {
-    cerr << "[ERR] Could not map view of file: " << GetLastError() << endl;
+    cerr << "[ERR] Consumer could not map view of file: " << GetLastError() << endl;
     CloseHandle(conSharedMappingFileHandle);
     return 1;
   }

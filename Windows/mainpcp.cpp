@@ -13,18 +13,18 @@ const int BUFFER_SIZE = 4;
 // 3 个生产者重复 4 次，4 个消费者重复 3 次
 // 三个生产者进程 ID = 1、2、3
 const int PRODUCER_PROCESS_ID_HEAD = 1;
-const int PRODUCER_PROCESS_ID_TAIL = 1;
+const int PRODUCER_PROCESS_ID_TAIL = 2;
 // 四个消费者进程 ID = 4、5、6、7
-const int CONSUMER_PROCESS_ID_HEAD = 2;
-const int CONSUMER_PROCESS_ID_TAIL = 2;
+const int CONSUMER_PROCESS_ID_HEAD = 3;
+const int CONSUMER_PROCESS_ID_TAIL = 4;
 // 共 7 个进程
-const int TOTAL_PROCESS_COUNT = 2;
+const int TOTAL_PROCESS_COUNT = 4;
 
 TCHAR PRODUCER_EXE_PATH[] = TEXT("producer.exe");
 TCHAR CONSUMER_EXE_PATH[] = TEXT("consumer.exe");
 
 // 共享缓冲文件名
-TCHAR SHM_NAME[] = TEXT("PCP_NAMED_SHARED_MEM");
+char SHM_NAME[] = "BUFFER";
 // 三个信号量名
 TCHAR SEM_EMPTY[] = TEXT("PCP_EMPTY");
 TCHAR SEM_FULL[] = TEXT("PCP_FULL");
