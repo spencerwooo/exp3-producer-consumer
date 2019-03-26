@@ -38,7 +38,9 @@
 
 ### Linux
 
-<img src="Images/linux.png" width="80%" align="center">
+<div align="center">
+  <img src="Images/linux.png" alt="Linux Screenshot" width="80%">
+</div>
 
 ### Windows
 
