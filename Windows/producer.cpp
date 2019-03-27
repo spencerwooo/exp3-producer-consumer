@@ -56,12 +56,12 @@ int main(int argc, char const *argv[])
   // 生产者重复生产
   for (int i = 0; i < PRODUCE_CYCLES; i++)
   {
+    // 随机一个等待时间
+    Sleep(getRandomDelay() * 1000);
+
     // 两个 P 操作，先申请 EMPTY，再申请 MUTEX
     WaitForSingleObject(consumerSemEmpty, INFINITE);
     WaitForSingleObject(consumerMutex, INFINITE);
-
-    // 随机一个等待时间
-    Sleep(getRandomDelay() * 1000);
 
     // 获得一个随机字母作为货物
     char stock = getStock();

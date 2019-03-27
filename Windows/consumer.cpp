@@ -48,12 +48,12 @@ int main(int argc, char const *argv[])
   // 消费者多次消费
   for (int i = 0; i < CONSUME_CYCLES; i++)
   {
+    // 随机一个等待时间
+    Sleep(getRandomDelay() * 1000);
+
     // 两个 P 操作，先申请 FULL，再申请 MUTEX
     WaitForSingleObject(producerSemFull, INFINITE);
     WaitForSingleObject(producerMutex, INFINITE);
-
-    // 随机一个等待时间
-    Sleep(getRandomDelay() * 1000);
 
     // 取出 buffer 头部物品
     char stock = pcpSharedMemory->data.buffer[pcpSharedMemory->data.head];
