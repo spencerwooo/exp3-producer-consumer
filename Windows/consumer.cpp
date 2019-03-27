@@ -45,7 +45,7 @@ int main(int argc, char const *argv[])
   HANDLE producerSemFull = OpenSemaphore(SEMAPHORE_ALL_ACCESS, FALSE, SEM_FULL);
   HANDLE producerMutex = OpenMutex(MUTEX_ALL_ACCESS, FALSE, SEM_MUTEX);
 
-  // 生产者重复生产
+  // 消费者多次消费
   for (int i = 0; i < CONSUME_CYCLES; i++)
   {
     // 两个 P 操作，先申请 FULL，再申请 MUTEX
@@ -77,6 +77,7 @@ int main(int argc, char const *argv[])
     }
     else
     {
+      // 从前到后遍历 buffer 内容并输出
       for (int j = (pcpSharedMemory->data.tail - 1 >= pcpSharedMemory->data.head) ? (pcpSharedMemory->data.tail - 1) : (pcpSharedMemory->data.tail - 1 + BUFFER_SIZE); j >= pcpSharedMemory->data.head; j--)
       {
         cout << pcpSharedMemory->data.buffer[j % BUFFER_SIZE];
