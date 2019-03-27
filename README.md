@@ -44,4 +44,6 @@
 
 ### Windows
 
-[WIP]
+<div align="center">
+  <img src="Images/windows.png" alt="Windows Screenshot" width="80%">
+</div>
