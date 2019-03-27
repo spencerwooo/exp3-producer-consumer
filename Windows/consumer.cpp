@@ -37,26 +37,27 @@ int main(int argc, char const *argv[])
   }
 
   struct sharedMemory *pcpSharedMemory = (struct sharedMemory *)conShmFilePointer;
-  pcpSharedMemory->semEmpty = OpenSemaphore(SEMAPHORE_ALL_ACCESS, FALSE, SEM_EMPTY);
-  pcpSharedMemory->semFull = OpenSemaphore(SEMAPHORE_ALL_ACCESS, FALSE, SEM_FULL);
-  pcpSharedMemory->semMutex = OpenMutex(SEMAPHORE_ALL_ACCESS, FALSE, SEM_MUTEX);
+  HANDLE producerSemEmpty = OpenSemaphore(SEMAPHORE_ALL_ACCESS, FALSE, SEM_EMPTY);
+  HANDLE producerSemFull = OpenSemaphore(SEMAPHORE_ALL_ACCESS, FALSE, SEM_FULL);
+  HANDLE producerMutex = OpenMutex(MUTEX_ALL_ACCESS, FALSE, SEM_MUTEX);
 
   for (int i = 0; i < CONSUME_CYCLES; i++)
   {
-    WaitForSingleObject(pcpSharedMemory->semFull, INFINITE);
-    WaitForSingleObject(pcpSharedMemory->semMutex, INFINITE);
+    WaitForSingleObject(producerSemFull, INFINITE);
+    WaitForSingleObject(producerMutex, INFINITE);
     Sleep(getRandomDelay() * 1000);
 
     char stock = pcpSharedMemory->data.buffer[pcpSharedMemory->data.head];
     pcpSharedMemory->data.head = (pcpSharedMemory->data.head + 1) % BUFFER_SIZE;
 
-    if (pcpSharedMemory->data.head == pcpSharedMemory->data.tail) {
-      pcpSharedMemory->data.isEmpty = 1;
+    if (pcpSharedMemory->data.head == pcpSharedMemory->data.tail)
+    {
+      pcpSharedMemory->data.isEmpty = TRUE;
     }
 
-    cout << "[CONSUMER] Consumer " << i << " consumes: " << stock << "| BUFFER: ";
+    cout << "[CONSUMER] Consumer " << i << " consumes: " << stock << " | BUFFER: ";
 
-    if (pcpSharedMemory->data.isEmpty)
+    if (pcpSharedMemory->data.isEmpty == TRUE)
     {
       cout << "-";
     }
@@ -70,11 +71,13 @@ int main(int argc, char const *argv[])
 
     cout << endl;
 
-    ReleaseMutex(pcpSharedMemory->semMutex);
-    ReleaseSemaphore(pcpSharedMemory->semEmpty, 1, NULL);
+    ReleaseMutex(producerMutex);
+    ReleaseSemaphore(producerSemEmpty, 1, NULL);
   }
 
   UnmapViewOfFile(conShmFilePointer);
   conShmFilePointer = NULL;
+  CloseHandle(conSharedMappingFileHandle);
+
   return 0;
 }

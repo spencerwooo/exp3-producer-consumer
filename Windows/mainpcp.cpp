@@ -50,6 +50,8 @@ void ProcessCreation(int processId)
 
 int main(int argc, char const *argv[])
 {
+  cout << "[MAIN] Main process start." << endl;
+
   HANDLE sharedMappingFileHandle;
   LPVOID shmFilePointer;
 
@@ -78,13 +80,14 @@ int main(int argc, char const *argv[])
 
   // 初始化信号量，两个同步信号量一个互斥信号量
   // 同步信号量 EMPTY = BUFFER_SIZE，表示可以进入缓冲区
-  pcpSharedMemory->semEmpty = CreateSemaphore(NULL, BUFFER_SIZE, BUFFER_SIZE, SEM_EMPTY);
+  HANDLE semEmpty = CreateSemaphore(NULL, BUFFER_SIZE, BUFFER_SIZE, SEM_EMPTY);
   // 同步信号量 FULL = 0，表示当前缓冲区没有物品
-  pcpSharedMemory->semFull = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEM_FULL);
+  HANDLE semFull = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEM_FULL);
   // 互斥信号量 MUTEX = 1
-  pcpSharedMemory->semMutex = CreateMutex(NULL, 1, SEM_MUTEX);
+  HANDLE semMutex = CreateMutex(NULL, FALSE, SEM_MUTEX);
   // 关闭文件映射上的视图的占用
   UnmapViewOfFile(shmFilePointer);
+  shmFilePointer = NULL;
 
   // 下一个即将创建的子进程序号
   int nextProcessId = 1;

@@ -45,25 +45,25 @@ int main(int argc, char const *argv[])
   }
 
   struct sharedMemory *pcpSharedMemory = (struct sharedMemory *)proShmFilePointer;
-  pcpSharedMemory->semEmpty = OpenSemaphore(SEMAPHORE_ALL_ACCESS, FALSE, SEM_EMPTY);
-  pcpSharedMemory->semFull = OpenSemaphore(SEMAPHORE_ALL_ACCESS, FALSE, SEM_FULL);
-  pcpSharedMemory->semMutex = OpenMutex(SEMAPHORE_ALL_ACCESS, FALSE, SEM_MUTEX);
+  HANDLE consumerSemEmpty = OpenSemaphore(SEMAPHORE_ALL_ACCESS, FALSE, SEM_EMPTY);
+  HANDLE consumerSemFull = OpenSemaphore(SEMAPHORE_ALL_ACCESS, FALSE, SEM_FULL);
+  HANDLE consumerMutex = OpenMutex(MUTEX_ALL_ACCESS, FALSE, SEM_MUTEX);
 
   for (int i = 0; i < PRODUCE_CYCLES; i++)
   {
-    WaitForSingleObject(pcpSharedMemory->semEmpty, INFINITE);
-    WaitForSingleObject(pcpSharedMemory->semMutex, INFINITE);
+    WaitForSingleObject(consumerSemEmpty, INFINITE);
+    WaitForSingleObject(consumerMutex, INFINITE);
     Sleep(getRandomDelay() * 1000);
 
     char stock = getStock();
 
     pcpSharedMemory->data.buffer[pcpSharedMemory->data.tail] = stock;
     pcpSharedMemory->data.tail = (pcpSharedMemory->data.tail + 1) % BUFFER_SIZE;
-    pcpSharedMemory->data.isEmpty = 0;
+    pcpSharedMemory->data.isEmpty = FALSE;
 
-    cout << "[PRODUCER] Producer " << i << " produces: " << stock << "| BUFFER: ";
+    cout << "[PRODUCER] Producer " << i << " produces: " << stock << " | BUFFER: ";
 
-    if (pcpSharedMemory->data.isEmpty)
+    if (pcpSharedMemory->data.isEmpty == TRUE)
     {
       cout << "-";
     }
@@ -77,12 +77,13 @@ int main(int argc, char const *argv[])
 
     cout << endl;
 
-    ReleaseMutex(pcpSharedMemory->semMutex);
-    ReleaseSemaphore(pcpSharedMemory->semFull, 1, NULL);
+    ReleaseMutex(consumerMutex);
+    ReleaseSemaphore(consumerSemFull, 1, NULL);
   }
 
   UnmapViewOfFile(proShmFilePointer);
   proShmFilePointer = NULL;
+  CloseHandle(proSharedMappingFileHandle);
 
   return 0;
 }
