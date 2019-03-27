@@ -122,7 +122,6 @@ int main(int argc, char const *argv[])
   while (nextProcessId <= TOTAL_PROCESS_COUNT)
   {
     ProcessCreation(nextProcessId++);
-    Sleep(500);
   }
   // 主进程依次等待 7 个子进程返回
   for (int i = 1; i <= TOTAL_PROCESS_COUNT; i++)
