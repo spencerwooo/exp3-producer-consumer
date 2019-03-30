@@ -2,6 +2,8 @@
 
 >【操作系统课程设计】实验三、生产者消费者问题
 
+仓库地址：[spencerwooo/exp3-producer-consumer](https://github.com/spencerwooo/exp3-producer-consumer)
+
 ## 实验要求
 
 1. 在 Windows 和 Linux 系统下通过进程编程模拟生产者消费者算法
@@ -47,3 +49,60 @@
 <div align="center">
   <img src="Images/windows.png" alt="Windows Screenshot" width="80%">
 </div>
+
+## 构建方式
+
+项目结构为：
+
+```
+.
+├── Images
+│   ├── linux.png
+│   └── windows.png
+├── LICENSE
+├── Linux
+│   ├── pcp
+│   └── pcp.cpp
+├── README.md
+└── Windows
+    ├── compile.ps1
+    ├── consumer.cpp
+    ├── consumer.exe
+    ├── mainpcp.cpp
+    ├── mainpcp.exe
+    ├── mainpcp.h
+    ├── producer.cpp
+    └── producer.exe
+
+3 directories, 14 files
+```
+
+Linux 文件夹下为 Linux 版本的进程模拟源码，Windows 文件夹下为 Windows 版本的进程模拟源码。
+
+### Linux
+
+- 进入 Linux 文件夹，编译 C++ 文件 `pcp.cpp`
+
+```bash
+cd Linux && g++ pcp.cpp -o pcp
+```
+
+- 运行可执行文件 `pcp`
+
+```bash
+./pcp
+```
+
+### Windows
+
+- 进入 Windows 文件夹，选择运行编译脚本 `compile.ps1`
+
+```powershell
+cd Windows && .\compile.ps1
+```
+
+- 运行主程序可执行文件 `mainpcp.exe`
+
+```powershell
+.\mainpcp.exe
+```
